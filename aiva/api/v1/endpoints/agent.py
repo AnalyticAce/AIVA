@@ -1,5 +1,3 @@
-from typing import Optional
-
 from fastapi import APIRouter, Body, HTTPException, status
 from decimal import Decimal
 
@@ -23,11 +21,7 @@ router = APIRouter(prefix="/agent", tags=["Agent"])
 async def process_financial_prompt(
     request: PromptRequest = Body(..., 
         example={
-            "prompt": "I spent $42.50 on groceries yesterday",
-            "context": {
-                "user_timezone": "America/New_York",
-                "currency": "USD"
-            }
+            "prompt": "I spent $42.50 on groceries yesterday and $100 on Uber the day before"
         })
 ) -> PromptResponse:
     try:
@@ -41,7 +35,6 @@ async def process_financial_prompt(
         )
         
         if result.get("transactions"):
-            # Process multiple transactions from the new format
             transactions = result["transactions"]
             finance_data_list = []
             
@@ -57,8 +50,7 @@ async def process_financial_prompt(
                     finance_data_list.append(finance_data)
                 except (ValueError, TypeError) as e:
                     logger.error(f"Validation error for transaction data: {str(e)}")
-                    # Continue processing other transactions instead of failing completely
-            
+
             response.transactions = finance_data_list
         
         if not response.transactions and not response.error:

@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Any, Union, Literal
 from datetime import date
 from decimal import Decimal
 
-from pydantic import BaseModel, Field, ConfigDict, validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
 class FinanceActionType(str, Enum):
@@ -77,7 +77,8 @@ class FinanceData(BaseModel):
         examples=["Weekly grocery shopping", "Monthly paycheck", "Freelance project"]
     )
     
-    @validator('date')
+    @field_validator('date')
+    @classmethod
     def validate_date_format(cls, v):
         """Validate that the date is in proper ISO format."""
         try:
@@ -103,22 +104,22 @@ class PromptRequest(BaseModel):
         ],
         min_length=3  # Ensure prompt has minimal content
     )
-    context: Optional[Context] = Field(
-        default=None,
-        description="Additional context to improve processing accuracy"
-    )
     
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "prompt": "I spent $42.50 on groceries yesterday",
-                "context": {
-                    "user_timezone": "America/New_York",
-                    "currency": "USD"
-                }
+                "prompt": "I spent $42.50 on groceries yesterday and $100 on Uber the day before"
             }
         }
     )
+    
+    @field_validator('prompt')
+    @classmethod
+    def validate_prompt_content(cls, v):
+        """Validate that the prompt content is not empty."""
+        if v is None or len(str(v).strip()) < 3:
+            raise ValueError('Prompt must contain meaningful content (at least 3 characters)')
+        return v
 
 
 # LLM Output Format - This defines the expected structure for LLM responses

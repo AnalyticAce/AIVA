@@ -168,7 +168,7 @@ def transaction_extraction_prompt_template(parser: PydanticOutputParser):
         - Always use the get_current_date tool if the user doesn't specify a date.
         - Use the get_available_categories tool to get a list of available categories.
 
-        Just return the JSON response without any additional text.
+        Just return the JSON response without any additional text especially comments.
         """),
         ("human", "{query}"),
         ("placeholder", "{agent_scratchpad}"),
@@ -283,6 +283,13 @@ async def process_prompt(prompt: str) -> Dict[str, Any]:
         return {"transactions": [], "error": str(e)}
 
 if __name__ == "__main__":
+    start = datetime.now()
+    print(f"Starting finance agent at {start}")
     agent = setup_agent(get_llm())
-    response = agent.invoke({"query": "I spent $100 on Uber to go to work the day before yesterday and $50 on groceries yesterday"})
+    response = agent.invoke(
+        {"query": "I spent $100 on Uber to go to work the day before yesterday and $50 on groceries yesterday"}
+    )
     print(process_agent_response(response))
+    end = datetime.now()
+    print(f"Finished finance agent at {end}")
+    print(f"Total time taken: {end - start}")
