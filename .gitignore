@@ -1,0 +1,5 @@
+.env
+new.md
+requirement-file.md
+__pycache__
+*.py[cod]

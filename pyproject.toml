@@ -1,0 +1,50 @@
+[project]
+name = "aiva"
+version = "0.1.0"
+description = "AI-Driven Finance Assistant API"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.103.0",
+    "uvicorn>=0.23.2",
+    "pydantic>=2.3.0",
+    "langchain>=0.0.267",
+    "langchain_openai>=0.0.267",
+    "langchain_community>=0.0.267",
+    "langgraph>=0.0.15",
+    "openai>=1.0.0",
+    "sqlalchemy>=2.0.20",
+    "python-dotenv>=1.0.0",
+    "pytest>=7.4.0",
+    "httpx>=0.24.1",  # For async HTTP requests and testing
+    "ruff>=0.0.284",  # For linting
+    "pydantic-settings>=2.0.3",  # For settings management
+    "tenacity>=8.2.3",  # For retries
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "black>=23.7.0",
+    "mypy>=1.5.1",
+    "ruff>=0.0.284",
+    "pytest-cov>=4.1.0",
+]
+
+[tool.ruff]
+select = ["E", "F", "I", "N", "W"]
+target-version = "py310"
+line-length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+
+[tool.mypy]
+python_version = "3.10"
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
