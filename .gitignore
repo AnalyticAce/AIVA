@@ -3,3 +3,5 @@ new.md
 requirement-file.md
 __pycache__
 *.py[cod]
+*.db
+sample.py
