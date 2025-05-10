@@ -1,6 +1,6 @@
-# AIVA - AI-Driven Finance Assistant API
+# AIVA - Artificial Intelligence Voice Accountant API
 
-AIVA (AI-Driven Finance Assistant) is a powerful API that processes natural language financial requests and converts them into structured data and SQL statements. It helps users track expenses, analyze spending patterns, and extract data from receipts using AI.
+AIVA (Artificial Intelligence Voice Accountant) is a powerful API that processes natural language financial requests and converts them into structured data and SQL statements. It helps users track expenses, analyze spending patterns, and extract data from receipts using AI.
 
 ## Features
 
