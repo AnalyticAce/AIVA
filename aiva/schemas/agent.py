@@ -3,6 +3,7 @@ Simplified Pydantic models for the finance agent API with structured output pars
 
 This module defines the request and response schemas for the AIVA finance agent API
 that processes user prompts about expenses and income, with output format enforcement.
+It now supports analytical queries and conversation threading with LangGraph.
 """
 from enum import Enum
 from typing import Dict, List, Optional, Any, Union, Literal
@@ -20,6 +21,16 @@ class FinanceActionType(str, Enum):
     REMOVE_EXPENSE = "remove_expense"
     ADD_INCOME = "add_income"
     REMOVE_INCOME = "remove_income"
+    UNKNOWN = "unknown"
+
+
+class QueryType(str, Enum):
+    """
+    Enumeration of query types for routing in the finance agent.
+    """
+    DATA_ENTRY = "data_entry"
+    ANALYSIS = "analysis" 
+    LISTING = "listing"
     UNKNOWN = "unknown"
 
 
@@ -89,6 +100,62 @@ class FinanceData(BaseModel):
             raise ValueError('Invalid date format. Must be YYYY-MM-DD')
 
 
+class CategorySummary(BaseModel):
+    """
+    Summary of financial transactions for a single category.
+    """
+    category: str = Field(..., description="Category name")
+    total_amount: float = Field(..., description="Total amount in this category")
+    transaction_count: int = Field(..., description="Number of transactions in this category")
+    
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "category": "groceries",
+                "total_amount": 150.75,
+                "transaction_count": 3
+            }
+        }
+    )
+
+
+class AnalyticsResponse(BaseModel):
+    """
+    Response model for analytics-type queries.
+    Can contain structured analysis data or markdown-formatted text.
+    """
+    # For structured data responses
+    total_income: Optional[float] = Field(None, description="Total income amount")
+    total_expenses: Optional[float] = Field(None, description="Total expenses amount")
+    net: Optional[float] = Field(None, description="Net income/expense (income - expenses)")
+    top_expense_categories: Optional[List[CategorySummary]] = Field(None, description="Top expense categories")
+    top_income_categories: Optional[List[CategorySummary]] = Field(None, description="Top income categories")
+    period: Optional[str] = Field(None, description="Time period of the analysis")
+    
+    # For text-based responses
+    content: Optional[str] = Field(None, description="Text content of the analysis, typically markdown-formatted")
+    format: Optional[str] = Field("markdown", description="Format of the content (e.g., 'markdown', 'plain')")
+    
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "total_income": 5000.00,
+                "total_expenses": 3500.50,
+                "net": 1499.50,
+                "top_expense_categories": [
+                    {"category": "groceries", "total_amount": 450.25, "transaction_count": 5},
+                    {"category": "rent", "total_amount": 1500.00, "transaction_count": 1}
+                ],
+                "top_income_categories": [
+                    {"category": "salary", "total_amount": 4500.00, "transaction_count": 1},
+                    {"category": "freelance", "total_amount": 500.00, "transaction_count": 2}
+                ],
+                "period": "May 2025"
+            }
+        }
+    )
+
+
 # Request Model
 class PromptRequest(BaseModel):
     """
@@ -100,15 +167,22 @@ class PromptRequest(BaseModel):
         examples=[
             "I spent $42.50 on groceries yesterday",
             "I earned $1500 from my job today",
-            "Delete the $25 expense for lunch on May 5"
+            "Delete the $25 expense for lunch on May 5",
+            "What are my top expense categories?",
+            "How much did I spend on groceries this month?"
         ],
         min_length=3  # Ensure prompt has minimal content
+    )
+    thread_id: Optional[str] = Field(
+        default=None,
+        description="Optional thread ID for maintaining conversation context"
     )
     
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "prompt": "I spent $42.50 on groceries yesterday and $100 on Uber the day before"
+                "prompt": "I spent $42.50 on groceries yesterday and $100 on Uber the day before",
+                "thread_id": None
             }
         }
     )
@@ -218,10 +292,20 @@ class TransactionListOutput(BaseModel):
 class PromptResponse(BaseModel):
     """
     Response from processing a financial prompt with validated data.
+    Can contain either transactions (for data entry queries) or
+    analytics results (for analysis queries).
     """
     transactions: List[FinanceData] = Field(
         default=[],
         description="List of extracted financial transactions"
+    )
+    analytics: Optional[AnalyticsResponse] = Field(
+        default=None,
+        description="Analytics and insights from the financial data"
+    )
+    query_type: Optional[str] = Field(
+        default=None,
+        description="The classified type of the query (data_entry, analysis, listing, unknown)"
     )
     error: Optional[str] = Field(
         default=None,
@@ -248,6 +332,8 @@ class PromptResponse(BaseModel):
                         "description": "Uber to work"
                     }
                 ],
+                "analytics": None,
+                "query_type": "data_entry",
                 "error": None
             }
         }
