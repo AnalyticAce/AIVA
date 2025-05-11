@@ -5,7 +5,6 @@ from sqlalchemy import create_engine, Column, Integer, String, Date, Numeric, fu
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from aiva.core.logging import logger
-from langchain_core.tools import tool
 
 # Database setup
 Base = declarative_base()
@@ -39,12 +38,10 @@ class Transaction(Base):
 # Create tables if they don't exist
 Base.metadata.create_all(bind=engine)
 
-@tool
 def get_current_date() -> str:
     """Get the current date in ISO format (YYYY-MM-DD)."""
     return datetime.now().date().isoformat()
 
-@tool
 def get_available_categories() -> list:
     """Get a list of available transaction categories."""
     return [
@@ -53,7 +50,6 @@ def get_available_categories() -> list:
         "travel", "salary", "investment", "gift", "other"
     ]
 
-@tool
 def insert_transaction(transaction_data: Dict[str, Any]) -> Dict[str, Any]:
     """Insert a new transaction into the database."""
     try:
@@ -76,7 +72,6 @@ def insert_transaction(transaction_data: Dict[str, Any]) -> Dict[str, Any]:
         logger.error(f"Error inserting transaction: {str(e)}")
         return {"success": False, "error": str(e)}
 
-@tool
 def get_transaction_by_id(transaction_id: int) -> Dict[str, Any]:
     """Retrieve a transaction by its ID."""
     try:
@@ -96,7 +91,6 @@ def get_transaction_by_id(transaction_id: int) -> Dict[str, Any]:
         logger.error(f"Error retrieving transaction: {str(e)}")
         return {"success": False, "error": str(e)}
 
-@tool
 def get_transactions_by_category(category: str) -> list:
     """Retrieve all transactions in a specific category."""
     try:
@@ -116,7 +110,6 @@ def get_transactions_by_category(category: str) -> list:
         logger.error(f"Error retrieving transactions by category: {str(e)}")
         return {"success": False, "error": str(e)}
 
-@tool
 def get_transactions_by_date_range(start_date: str, end_date: str) -> list:
     """Retrieve transactions between two dates."""
     try:
@@ -143,7 +136,6 @@ def get_transactions_by_date_range(start_date: str, end_date: str) -> list:
         logger.error(f"Error retrieving transactions by date range: {str(e)}")
         return {"success": False, "error": str(e)}
 
-@tool
 def group_transactions_by_category(include_income: bool = True, include_expenses: bool = True, 
                                 start_date: Optional[str] = None, end_date: Optional[str] = None) -> list:
     """Get summary of total amounts by category within optional date range."""
@@ -187,7 +179,6 @@ def group_transactions_by_category(include_income: bool = True, include_expenses
         logger.error(f"Error grouping transactions by category: {str(e)}")
         return {"success": False, "error": str(e)}
 
-@tool
 def delete_transaction(transaction_id: int) -> Dict[str, Any]:
     """Remove a transaction from the database."""
     try:
@@ -203,7 +194,6 @@ def delete_transaction(transaction_id: int) -> Dict[str, Any]:
         logger.error(f"Error deleting transaction: {str(e)}")
         return {"success": False, "error": str(e)}
 
-@tool
 def update_transaction(transaction_id: int, updates: Dict[str, Any]) -> Dict[str, Any]:
     """Update fields of an existing transaction."""
     try:
@@ -229,3 +219,22 @@ def update_transaction(transaction_id: int, updates: Dict[str, Any]) -> Dict[str
         session.rollback()
         logger.error(f"Error updating transaction: {str(e)}")
         return {"success": False, "error": str(e)}
+
+
+# insert transaction
+
+if __name__ == "__main__":
+    # Example usage
+    transaction_data = {
+        "action": "add_expense",
+        "amount": 50.00,
+        "category": "groceries",
+        "date": "2025-05-11",
+        "description": "Weekly grocery shopping"
+    }
+    
+    result = insert_transaction(transaction_data)
+    print(result)
+
+    transactions = get_transactions_by_category("groceries")
+    print(transactions)

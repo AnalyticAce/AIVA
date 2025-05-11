@@ -125,6 +125,7 @@ dependencies = [
     { name = "langchain-openai" },
     { name = "langchain-opentutorial" },
     { name = "langgraph" },
+    { name = "langgraph-supervisor" },
     { name = "openai" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -157,6 +158,7 @@ requires-dist = [
     { name = "langchain-openai", specifier = ">=0.0.267" },
     { name = "langchain-opentutorial", specifier = ">=0.0.8" },
     { name = "langgraph", specifier = ">=0.0.15" },
+    { name = "langgraph-supervisor", specifier = ">=0.0.21" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.5.1" },
     { name = "openai", specifier = ">=1.0.0" },
     { name = "pydantic", specifier = ">=2.3.0" },
@@ -1073,6 +1075,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/97/7a/5fede018d8b9100db14211cfdb94aefd0e5f2e9ae738072f3d4cc443465b/langgraph_sdk-0.1.66.tar.gz", hash = "sha256:81474ad4555a06004cc7a2f4ab477135d5eaf7db11fbcf2a69257fb2d717582e", size = 44049 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/97/06/87ce0b8043ba5a4ec8369a243f3140f8fd9d9b7aab1d8a9351711739beea/langgraph_sdk-0.1.66-py3-none-any.whl", hash = "sha256:f781c63f3e913d3d6bedb02cb84d775cda64e3cdf3282fd387bdd8faaf53c603", size = 47584 },
+]
+
+[[package]]
+name = "langgraph-supervisor"
+version = "0.0.21"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "langchain-core" },
+    { name = "langgraph" },
+    { name = "langgraph-prebuilt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/12/b5/33b6d7f6182353ff96dc5eee9f5c90e878b3fbbb72fabe1ab0731893054a/langgraph_supervisor-0.0.21.tar.gz", hash = "sha256:37ff87db1bc286b62441c5d896fc27e1d628bab0ca583c9f9447117276e0959d", size = 19264 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d3/14/9df4a8f8e07057168e2a9c0f3d1d3c47014cb5366a16aa95bfbcfa5dc531/langgraph_supervisor-0.0.21-py3-none-any.whl", hash = "sha256:8cb50aa3baafce92ca798009cb583910b5a97c71dc8317159e402d7ba42eb89b", size = 14445 },
 ]
 
 [[package]]
