@@ -1,19 +1,28 @@
 from typing import Optional, Literal
-import json
 
 from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from langchain.tools import StructuredTool
 
 from langgraph.graph import StateGraph, START, END
-from langgraph.prebuilt import create_react_agent
+from langgraph.prebuilt import create_react_agent, ToolNode, tools_condition
 from langgraph.checkpoint.memory import MemorySaver
 
 from aiva.core.config import settings
 from aiva.services.agents.agent_model import (
     QueryType, FinanceAgentState,
 )
-from aiva.services.agents.agent_tools import data_tools, report_tools, analysis_tools
+from aiva.services.agents.agent_tools import (
+    get_current_date,
+    get_available_categories,
+    insert_transaction,
+    delete_transaction,
+    update_transaction,
+    get_available_categories,
+    get_transactions_by_category,
+    get_transactions_by_date_range,
+    group_transactions_by_category
+)
 from aiva.services.agents.prompts import (
     _TRANSACTION_EXTRACTION_PROMPT, _FINANCIAL_ANALYST_PROMPT, _QUERY_CLASSIFICATION_PROMPT
 )
@@ -32,9 +41,6 @@ def prompt_builder(
         ("system", prompt),
         ("placeholder", "{agent_scratchpad}"),
     ])
-
-data_entry_toolkit = [StructuredTool.from_function(tool) for tool in data_tools]
-analysis_toolkit = [StructuredTool.from_function(tool) for tool in analysis_tools]
 
 def classify_query(state: FinanceAgentState):
     query = state["query"]
@@ -89,7 +95,13 @@ def create_finance_agents():
     
     data_entry_agent = create_react_agent(
         model=llm,
-        tools=data_entry_toolkit,
+        tools=[
+            get_current_date,
+            get_available_categories,
+            insert_transaction,
+            delete_transaction,
+            update_transaction,
+        ],
         prompt=data_entry_prompt,
         checkpointer=memory,
         debug=True,
@@ -97,7 +109,13 @@ def create_finance_agents():
     
     analysis_agent = create_react_agent(
         model=llm,
-        tools=analysis_toolkit,
+        tools=[
+            get_current_date,
+            get_available_categories,
+            get_transactions_by_category,
+            get_transactions_by_date_range,
+            group_transactions_by_category,
+        ],
         prompt=analysis_prompt,
         checkpointer=memory,
         debug=True,
@@ -108,12 +126,30 @@ def create_finance_agents():
 def create_finance_agent_graph():
     data_entry_agent, analysis_agent = create_finance_agents()
 
+    data_entry_tools = ToolNode([
+        get_current_date,
+        get_available_categories,
+        insert_transaction,
+        delete_transaction,
+        update_transaction,
+    ])
+    
+    analysis_tools = ToolNode([
+        get_current_date,
+        get_available_categories,
+        get_transactions_by_category,
+        get_transactions_by_date_range,
+        group_transactions_by_category,
+    ])
+
     workflow = StateGraph(FinanceAgentState)
 
     workflow.add_node("modify_query_state", modify_query_state)
     workflow.add_node("classify_query", classify_query)
     workflow.add_node("data_entry_agent", data_entry_agent)
     workflow.add_node("analysis_agent", analysis_agent)
+    workflow.add_node("data_entry_tools", data_entry_tools)
+    workflow.add_node("analysis_tools", analysis_tools)
 
     workflow.add_edge(START, "modify_query_state")
     workflow.add_edge("modify_query_state", "classify_query")
@@ -126,8 +162,26 @@ def create_finance_agent_graph():
         }
     )
 
-    workflow.add_edge("data_entry_agent", END)
-    workflow.add_edge("analysis_agent", END)
+    workflow.add_conditional_edges(
+        "data_entry_agent",
+        tools_condition,
+        {
+            "tools": "data_entry_tools",
+            "__end__": END
+        }
+    )
+    
+    workflow.add_conditional_edges(
+        "analysis_agent",
+        tools_condition,
+        {
+            "tools": "analysis_tools",
+            "__end__": END
+        }
+    )
+
+    workflow.add_edge("data_entry_tools", "data_entry_agent")
+    workflow.add_edge("analysis_tools", "analysis_agent")
     
     finance_graph = workflow.compile()
     
@@ -135,7 +189,7 @@ def create_finance_agent_graph():
 
 def process_prompt(query: str, thread_id: Optional[str] = None):
     finance_agent = create_finance_agent_graph()
-
+    
     initial_state = {
         "query": query,
         "query_type": QueryType.UNKNOWN,

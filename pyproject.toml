@@ -16,10 +16,13 @@ dependencies = [
     "sqlalchemy>=2.0.20",
     "python-dotenv>=1.0.0",
     "pytest>=7.4.0",
-    "httpx>=0.24.1",  # For async HTTP requests and testing
-    "ruff>=0.0.284",  # For linting
-    "pydantic-settings>=2.0.3",  # For settings management
-    "tenacity>=8.2.3",  # For retries
+    "httpx>=0.24.1", # For async HTTP requests and testing
+    "ruff>=0.0.284", # For linting
+    "pydantic-settings>=2.0.3", # For settings management
+    "tenacity>=8.2.3", # For retries
+    "langchain-opentutorial>=0.0.8",
+    "ipython>=8.36.0",
+    "pyppeteer>=2.0.0",
 ]
 
 [project.optional-dependencies]

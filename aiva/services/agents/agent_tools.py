@@ -5,6 +5,7 @@ from sqlalchemy import create_engine, Column, Integer, String, Date, Numeric, fu
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from aiva.core.logging import logger
+from langchain_core.tools import tool
 
 # Database setup
 Base = declarative_base()
@@ -38,12 +39,13 @@ class Transaction(Base):
 # Create tables if they don't exist
 Base.metadata.create_all(bind=engine)
 
-# Tools implementation
-def get_current_date():
+@tool
+def get_current_date() -> str:
     """Get the current date in ISO format (YYYY-MM-DD)."""
     return datetime.now().date().isoformat()
 
-def get_available_categories():
+@tool
+def get_available_categories() -> list:
     """Get a list of available transaction categories."""
     return [
         "groceries", "transportation", "utilities", "rent", "dining", 
@@ -51,7 +53,8 @@ def get_available_categories():
         "travel", "salary", "investment", "gift", "other"
     ]
 
-def insert_transaction(transaction_data: Dict[str, Any]):
+@tool
+def insert_transaction(transaction_data: Dict[str, Any]) -> Dict[str, Any]:
     """Insert a new transaction into the database."""
     try:
         date_obj = datetime.strptime(transaction_data["date"], "%Y-%m-%d").date()
@@ -73,7 +76,8 @@ def insert_transaction(transaction_data: Dict[str, Any]):
         logger.error(f"Error inserting transaction: {str(e)}")
         return {"success": False, "error": str(e)}
 
-def get_transaction_by_id(transaction_id: int):
+@tool
+def get_transaction_by_id(transaction_id: int) -> Dict[str, Any]:
     """Retrieve a transaction by its ID."""
     try:
         transaction = session.query(Transaction).filter(Transaction.id == transaction_id).first()
@@ -92,7 +96,8 @@ def get_transaction_by_id(transaction_id: int):
         logger.error(f"Error retrieving transaction: {str(e)}")
         return {"success": False, "error": str(e)}
 
-def get_transactions_by_category(category: str):
+@tool
+def get_transactions_by_category(category: str) -> list:
     """Retrieve all transactions in a specific category."""
     try:
         transactions = session.query(Transaction).filter(Transaction.category == category).all()
@@ -111,7 +116,8 @@ def get_transactions_by_category(category: str):
         logger.error(f"Error retrieving transactions by category: {str(e)}")
         return {"success": False, "error": str(e)}
 
-def get_transactions_by_date_range(start_date: str, end_date: str):
+@tool
+def get_transactions_by_date_range(start_date: str, end_date: str) -> list:
     """Retrieve transactions between two dates."""
     try:
         start_date_obj = datetime.strptime(start_date, "%Y-%m-%d").date()
@@ -137,8 +143,9 @@ def get_transactions_by_date_range(start_date: str, end_date: str):
         logger.error(f"Error retrieving transactions by date range: {str(e)}")
         return {"success": False, "error": str(e)}
 
+@tool
 def group_transactions_by_category(include_income: bool = True, include_expenses: bool = True, 
-                                start_date: Optional[str] = None, end_date: Optional[str] = None):
+                                start_date: Optional[str] = None, end_date: Optional[str] = None) -> list:
     """Get summary of total amounts by category within optional date range."""
     try:
         query = session.query(
@@ -180,7 +187,8 @@ def group_transactions_by_category(include_income: bool = True, include_expenses
         logger.error(f"Error grouping transactions by category: {str(e)}")
         return {"success": False, "error": str(e)}
 
-def delete_transaction(transaction_id: int):
+@tool
+def delete_transaction(transaction_id: int) -> Dict[str, Any]:
     """Remove a transaction from the database."""
     try:
         transaction = session.query(Transaction).filter(Transaction.id == transaction_id).first()
@@ -195,7 +203,8 @@ def delete_transaction(transaction_id: int):
         logger.error(f"Error deleting transaction: {str(e)}")
         return {"success": False, "error": str(e)}
 
-def update_transaction(transaction_id: int, updates: Dict[str, Any]):
+@tool
+def update_transaction(transaction_id: int, updates: Dict[str, Any]) -> Dict[str, Any]:
     """Update fields of an existing transaction."""
     try:
         transaction = session.query(Transaction).filter(Transaction.id == transaction_id).first()
@@ -220,29 +229,3 @@ def update_transaction(transaction_id: int, updates: Dict[str, Any]):
         session.rollback()
         logger.error(f"Error updating transaction: {str(e)}")
         return {"success": False, "error": str(e)}
-
-# Export list of available tools
-data_tools = [
-    get_current_date,
-    get_available_categories,
-    insert_transaction,
-    delete_transaction,
-    update_transaction
-]
-
-report_tools = [
-    get_current_date,
-    get_available_categories,
-    get_transactions_by_category,
-    get_transactions_by_date_range,
-    group_transactions_by_category
-]
-
-analysis_tools = [
-    get_current_date,
-    get_available_categories,
-    get_transactions_by_category,
-    get_transactions_by_date_range,
-    group_transactions_by_category,
-    get_transaction_by_id
-]
