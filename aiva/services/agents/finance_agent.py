@@ -86,113 +86,105 @@ def create_finance_system():
     
     return finance_system
 
-from textwrap import wrap
+from datetime import datetime
+from typing import Optional
+
+from rich.console import Console
+from rich.panel import Panel
+from rich.box import ROUNDED
+from rich.markdown import Markdown
+
+console = Console()
 
 def format_timestamp():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 def print_ascii_conversation(messages: list):
-    """Prints the conversation in a beautiful ASCII format"""
-    print("\n" + "═" * 80)
-    print(" FINANCIAL ASSISTANT CONVERSATION ".center(80, ' '))
-    print("═" * 80 + "\n")
-    
+    console.rule("[bold blue]FINANCIAL ASSISTANT CONVERSATION", style="blue")
+
     for msg in messages:
         if not hasattr(msg, 'content'):
             continue
-            
-        # Determine message type and formatting
-        if msg.__class__.__name__ == "HumanMessage":
-            prefix = "👤 USER: "
-            box_char = "─"
-            indent = " " * 9
-            width = 70
-        elif msg.__class__.__name__ == "AIMessage":
-            prefix = "🤖 ASSISTANT: "
-            box_char = "═"
-            indent = " " * 14
-            width = 65
-        elif msg.__class__.__name__ == "ToolMessage":
-            prefix = "🛠️ TOOL: "
-            box_char = "─"
-            indent = " " * 9
-            width = 70
+
+        role = msg.__class__.__name__
+        content = msg.content or ""
+        prefix = ""
+        color = "white"
+        title = ""
+        padding = (1, 2)
+
+        if role == "HumanMessage":
+            prefix = "👤 USER"
+            color = "green"
+        elif role == "AIMessage":
+            prefix = "🤖 ASSISTANT"
+            color = "cyan"
+        elif role == "ToolMessage":
+            prefix = "🛠️ TOOL"
+            color = "yellow"
         else:
             continue
-            
-        # Format the content
-        content = msg.content if msg.content else ""
-        
-        # Handle tool calls if present
-        tool_calls = ""
+
+        # Build tool call info if exists
+        tool_calls_text = ""
         if hasattr(msg, 'tool_calls') and msg.tool_calls:
-            tool_calls = "\n" + indent + "Tool Calls:\n"
+            tool_calls_text += "\n[bold yellow]Tool Calls:[/bold yellow]\n"
             for call in msg.tool_calls:
-                tool_calls += indent + f"- {call.get('name', 'unknown')}\n"
-                args = call.get('args', {})
+                name = call.get("name", "unknown")
+                tool_calls_text += f" • [bold]{name}[/bold]\n"
+                args = call.get("args", {})
                 if args:
-                    tool_calls += indent + "  Arguments:\n"
                     for k, v in args.items():
-                        tool_calls += indent + f"  • {k}: {v}\n"
-        
-        # Handle usage metadata if present
-        usage_info = ""
+                        tool_calls_text += f"   - {k}: {v}\n"
+
+        # Token usage info if exists
+        usage_text = ""
         if hasattr(msg, 'usage_metadata'):
             usage = getattr(msg, 'usage_metadata', {})
             if usage:
-                usage_info = "\n" + indent + "Token Usage:\n"
-                usage_info += indent + f"- Input: {usage.get('input_tokens', 0)}\n"
-                usage_info += indent + f"- Output: {usage.get('output_tokens', 0)}\n"
-                usage_info += indent + f"- Total: {usage.get('total_tokens', 0)}\n"
-        
-        # Print the message
-        print(f"╭{box_char * (len(prefix) + width)}╮")
-        print(f"│{prefix}{content.ljust(width)}│")
-        
-        if tool_calls:
-            for line in tool_calls.split('\n'):
-                print(f"│{line.ljust(width + len(prefix))}│")
-        
-        if usage_info:
-            for line in usage_info.split('\n'):
-                print(f"│{line.ljust(width + len(prefix))}│")
-        
-        print(f"╰{box_char * (len(prefix) + width)}╯\n")
+                usage_text += "\n[bold magenta]Token Usage:[/bold magenta]\n"
+                usage_text += f" - Input: {usage.get('input_tokens', 0)}\n"
+                usage_text += f" - Output: {usage.get('output_tokens', 0)}\n"
+                usage_text += f" - Total: {usage.get('total_tokens', 0)}\n"
+
+        full_text = content + tool_calls_text + usage_text
+
+        panel = Panel(
+            full_text.strip(),
+            title=f"[{color}]{prefix}",
+            border_style=color,
+            box=ROUNDED,
+            padding=padding
+        )
+        console.print(panel)
 
 def process_prompt(query: str, thread_id: Optional[str] = None):
-    """Process a user query and print beautiful ASCII output"""
     finance_system = create_finance_system()
     initial_state = {"messages": [{"role": "user", "content": query}]}
     config = {"configurable": {"thread_id": thread_id}} if thread_id else {}
-    
-    print("\n" + "★" * 40)
-    print(f" PROCESSING QUERY ".center(40, '★'))
-    print("★" * 40 + "\n")
-    print(f"📝 Query: {query}")
-    print(f"⏱️ Start time: {format_timestamp()}\n")
-    
+
+    console.rule("[bold green]PROCESSING QUERY", style="green")
+    console.print(f"[bold]📝 Query:[/bold] {query}")
+    console.print(f"[bold]⏱️ Start time:[/bold] {format_timestamp()}\n")
+
     try:
         result = finance_system.invoke(initial_state, config)
         print_ascii_conversation(result.get("messages", []))
-        
-        # Extract final answer
-        final_messages = [m for m in result.get("messages", []) 
-                        if hasattr(m, 'content') and m.content and 
-                        not getattr(m, 'tool_calls', None)]
-        
+
+        final_messages = [
+            m for m in result.get("messages", [])
+            if hasattr(m, 'content') and m.content and not getattr(m, 'tool_calls', None)
+        ]
+
         if final_messages:
-            print("\n" + "✔" * 40)
-            print(f" FINAL ANSWER ".center(40, '✔'))
-            print("✔" * 40 + "\n")
-            print(final_messages[-1].content)
-        
-        print(f"\n⏱️ End time: {format_timestamp()}")
-        
+            console.rule("[bold green]FINAL ANSWER", style="green")
+            console.print(Markdown(final_messages[-1].content.strip()))
+
+        console.print(f"\n[bold]⏱️ End time:[/bold] {format_timestamp()}")
+
     except Exception as e:
-        print("\n" + "⚠" * 40)
-        print(f" ERROR ".center(40, '⚠'))
-        print("⚠" * 40 + "\n")
-        print(f"Error processing query: {str(e)}")
+        console.rule("[bold red]ERROR", style="red")
+        console.print(f"[bold red]❌ Error processing query:[/bold red] {e}")
 
 if __name__ == "__main__":
     query = "How much did I spend on groceries this month?"

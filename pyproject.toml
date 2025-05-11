@@ -24,6 +24,7 @@ dependencies = [
     "ipython>=8.36.0",
     "pyppeteer>=2.0.0",
     "langgraph-supervisor>=0.0.21",
+    "rich>=14.0.0",
 ]
 
 [project.optional-dependencies]

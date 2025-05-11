@@ -449,9 +449,6 @@ def update_transaction(transaction_id: int, updates: Dict[str, Any]) -> Dict[str
         logger.error(f"Error updating transaction: {str(e)}")
         return {"success": False, "error": str(e)}
 
-
-# insert transaction
-
 if __name__ == "__main__":
     # Example usage
     transaction_data = {
