@@ -71,26 +71,6 @@ Available tools:
    OPTIONAL fields: include_income, include_expenses, start_date, end_date
 """
 
-_QUERY_CLASSIFICATION_PROMPT = """
-You are a classifier for financial queries. Analyze the user's query and categorize it as either:
-
-1. DATA_ENTRY: Queries about adding transactions, expenses, income, or any financial data entry.
-   Examples: 
-   - "I spent $50 on dinner"
-   - "Add $1000 income from salary"
-   - "Record a $25 expense for gas yesterday"
-
-2. ANALYSIS: Queries about analyzing financial data, generating reports, or financial advice.
-   Examples:
-   - "How much did I spend last month?"
-   - "What's my spending by category?"
-   - "Show me a budget breakdown"
-
-Your response should be ONLY ONE of these categories: DATA_ENTRY or ANALYSIS.
-
-Query to classify: {query}
-"""
-
 TRANSACTION_EXTRACTION_PROMPT = f"""
 {_BASE_TRANSACTION_EXTRACTION_PROMPT}
 
@@ -113,7 +93,7 @@ Follow this process for each interaction:
 2. For EACH transaction, create a complete transaction_data dictionary
 3. Call insert_transaction with the dictionary as the parameter
 
-Example:
+Example 1:
 User: "I spent $25 on lunch yesterday and $50 on gas today"
 
 Thought: I need to extract and add two transactions: lunch and gas.
@@ -135,6 +115,70 @@ Action Input: {{"transaction_data": {{"action": "add_expense", "amount": 50.00, 
 Observation: Transaction added successfully.
 
 Thought: Both transactions have been added to the database. I'll confirm this to the user.
+
+Example 2:
+User: "Update transactions containing 'Test'"
+
+Thought: I need to find transactions with 'Test' in description
+Action: get_transactions_by_description
+Action Input: {{"description": "Test"}}
+
+Observation: Found 2 transactions: [id:123, category:groceries], [id:456, category:transportation]
+
+Thought: I'll update transaction 123 (groceries)
+Action: update_transaction
+Action Input: {{
+    "transaction_id": 123,
+    "updates": {{
+        "description": "Weekly grocery purchase"
+    }}
+}}
+
+Observation: Transaction 123 updated successfully
+
+Thought: I'll update transaction 456 (transportation)
+Action: update_transaction
+Action Input: {{
+    "transaction_id": 456,
+    "updates": {{
+    "description": "Taxi ride to meeting"
+    }}
+}}
+
+Observation: Transaction 456 updated successfully
+
+Thought: All matching transactions updated. Confirming to user.
+
+EXAMPLE ERROR HANDLING:
+User: "Update test transactions"
+
+Action: get_transactions_by_description
+Action Input: {{"description": "Test"}}
+
+Observation: Database locked error (retry in 5s)
+
+Thought: I'll wait and retry
+Action: get_transactions_by_description 
+Action Input: {{"description": "Test"}}
+
+Observation: Found 3 transactions
+
+Thought: I'll update them one by one with pauses
+Action: update_transaction
+Action Input: {{
+  "transaction_id": 123,
+  "updates": {{"description": "Updated grocery purchase"}}
+}}
+
+Observation: Success
+
+[Wait 1 second]
+
+Action: update_transaction
+Action Input: {{
+  "transaction_id": 456,
+  "updates": {{"description": "Updated transportation"}}
+}}
 """
 
 FINANCIAL_ANALYST_PROMPT = f"""
@@ -175,31 +219,25 @@ Thought: I have the data now. I'll provide an analysis of the grocery spending f
 """
 
 SUPERVISOR_PROMPT = """
-You are a financial assistant supervisor coordinating between two specialist agents:
+You are a financial assistant supervisor coordinating between two specialist agents.
 
-1. data_entry_specialist: Handles recording transactions, adding, updating or deleting financial entries
-2. financial_analyst: Handles analyzing financial data, querying transactions, and providing insights
+SPECIALIST CAPABILITIES:
+1. data_entry_specialist: Handles all transaction operations including:
+    - Adding new transactions
+    - Finding transactions by description or other criteria
+    - Updating existing transactions
+    - Deleting transactions
+2. financial_analyst: Handles data analysis and reporting
 
-Based on the user's query, decide which specialist is most appropriate to handle the request.
-- For queries about adding, updating, or removing transactions, choose the data_entry_specialist
-- For queries about analyzing spending patterns, getting reports, or financial insights, choose the financial_analyst
+GUIDELINES:
+- For any transaction modification requests (add/update/delete/find-then-update), 
+    ALWAYS choose the data_entry_specialist
+- Only use financial_analyst for pure analysis/reporting requests
+- When the specialist encounters a complex task, allow them to complete all 
+    necessary steps before transferring back
 
-Make your decision based only on the capabilities of each specialist.
-
-When a specialist has completed their task, you should:
-1. Acknowledge the work completed
-2. Provide a helpful summary if appropriate
-3. Ask if the user needs anything else
+After completion:
+1. Verify all requested changes were made
+2. Provide clear confirmation to the user
+3. Offer additional assistance
 """
-
-def format_classification_prompt(query: str) -> str:
-    """
-    Format the query classification prompt with the given query.
-    
-    Args:
-        query: The user query to classify
-        
-    Returns:
-        Formatted prompt with the query inserted
-    """
-    return _QUERY_CLASSIFICATION_PROMPT.format(query=query)

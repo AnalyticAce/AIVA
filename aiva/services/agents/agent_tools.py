@@ -10,8 +10,20 @@ from aiva.core.logging import logger
 
 # Database setup
 Base = declarative_base()
-engine = create_engine('sqlite:///transactions.db')
-SessionFactory = sessionmaker(bind=engine)
+engine = create_engine(
+    'sqlite:///transactions.db',
+    connect_args={'timeout': 30},  # Increase timeout
+    pool_pre_ping=True,  # Check connections before use
+    isolation_level="SERIALIZABLE"  # Stronger isolation
+)
+
+# Session factory with autoflush disabled
+SessionLocal = sessionmaker(
+    bind=engine,
+    autocommit=False,
+    autoflush=False,
+    expire_on_commit=False
+)
 
 @contextmanager
 def session_scope() -> Generator[Session, None, None]:
@@ -30,7 +42,7 @@ def session_scope() -> Generator[Session, None, None]:
         ...     session.add(transaction)
         ...     # No need to commit - happens automatically if no exceptions
     """
-    session = SessionFactory()
+    session = SessionLocal()
     try:
         yield session
         session.commit()
@@ -207,6 +219,73 @@ def get_transaction_by_id(transaction_id: int) -> Dict[str, Any]:
                 return {"success": False, "error": f"No transaction found with ID: {transaction_id}"}
     except Exception as e:
         logger.error(f"Error retrieving transaction: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+def get_all_transactions() -> list:
+    """
+    Retrieve all transactions from the database.
+    
+    Returns:
+        list: List of transaction dictionaries or error message
+            - On success: List of transaction data
+            - On failure: {"success": False, "error": "error message"}
+            
+    Example:
+        >>> get_all_transactions()
+        [
+            {
+                "id": 1,
+                "action": "add_expense",
+                "amount": 42.5,
+                "category": "groceries",
+                "date": "2025-05-10",
+                "description": "Weekly shopping"
+            },
+            ...
+        ]
+    """
+    try:
+        with session_scope() as session:
+            transactions = session.query(Transaction).all()
+            return [
+                {
+                    "id": t.id,
+                    "action": t.action,
+                    "amount": float(t.amount),
+                    "category": t.category,
+                    "date": t.date.isoformat(),
+                    "description": t.description
+                }
+                for t in transactions
+            ]
+    except Exception as e:
+        logger.error(f"Error retrieving all transactions: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+def get_transactions_by_description(description: str) -> List[Dict[str, Any]]:
+    """Find transactions containing specific text in description"""
+    try:
+        with session_scope() as session:
+            transactions = session.query(Transaction).filter(
+                Transaction.description.contains(description)
+            ).all()
+            
+            if not transactions:
+                return {"success": False, "message": f"No transactions found with '{description}'"}
+            
+            return [
+                {
+                    "id": t.id,
+                    "action": t.action,
+                    "amount": float(t.amount),
+                    "category": t.category,
+                    "date": t.date.isoformat(),
+                    "description": t.description
+                }
+                for t in transactions
+            ]
+    except Exception as e:
+        logger.error(f"Error finding transactions: {str(e)}")
         return {"success": False, "error": str(e)}
 
 def get_transactions_by_category(category: str, start_date: Optional[str] = None, end_date: Optional[str] = None) -> list:
@@ -428,26 +507,77 @@ def update_transaction(transaction_id: int, updates: Dict[str, Any]) -> Dict[str
     """
     try:
         with session_scope() as session:
-            transaction = session.query(Transaction).filter(Transaction.id == transaction_id).first()
-            if transaction:
-                # Update fields that are present in the updates dict
-                if "action" in updates:
-                    transaction.action = updates["action"]
-                if "amount" in updates:
-                    transaction.amount = updates["amount"]
-                if "category" in updates:
-                    transaction.category = updates["category"]
-                if "date" in updates:
-                    transaction.date = datetime.strptime(updates["date"], "%Y-%m-%d").date()
-                if "description" in updates:
-                    transaction.description = updates["description"]
-                    
-                return {"success": True, "message": f"Transaction {transaction_id} updated successfully"}
-            else:
-                return {"success": False, "error": f"No transaction found with ID: {transaction_id}"}
+            transaction = session.query(Transaction).get(transaction_id)
+            if not transaction:
+                return {"success": False, "error": f"Transaction {transaction_id} not found"}
+            
+            # Apply updates
+            for field, value in updates.items():
+                if field == "date":
+                    value = datetime.strptime(value, "%Y-%m-%d").date()
+                setattr(transaction, field, value)
+            
+            return {"success": True, "message": f"Transaction {transaction_id} updated"}
     except Exception as e:
         logger.error(f"Error updating transaction: {str(e)}")
         return {"success": False, "error": str(e)}
+
+def update_multiple_transactions(updates: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Updates multiple transaction records in the database.
+
+    This function processes a list of transaction updates, applying them to the corresponding
+    Transaction records in the database. For each transaction, it can update the description, 
+    amount, category, date, and action fields if provided in the update dictionary.
+
+    Args:
+        updates (List[Dict[str, Any]]): A list of dictionaries containing transaction updates.
+            Each dictionary must have a 'transaction_id' key and may include any of the following keys:
+            - 'description': New description for the transaction
+            - 'amount': New amount for the transaction
+            - 'category': New category for the transaction
+            - 'date': New date for the transaction (format: 'YYYY-MM-DD')
+            - 'action': New action for the transaction
+
+    Returns:
+        Dict[str, Any]: A dictionary with a 'results' key containing a list of dictionaries,
+            each with the following keys:
+            - 'id': ID of the transaction that was attempted to be updated
+            - 'success': Boolean indicating whether the update was successful
+            - 'error': Error message if the update failed (only present for failed updates)
+
+    Example:
+        >>> updates = [
+        ...     {"transaction_id": 1, "description": "Updated description", "amount": 100.50},
+        ...     {"transaction_id": 2, "category": "Food", "date": "2023-04-15"}
+        ... ]
+        >>> result = update_multiple_transactions(updates)
+        >>> print(result)
+        {'results': [{'id': 1, 'success': True}, {'id': 2, 'success': True}]}
+    """
+    results = []
+    with session_scope() as session:
+        for update in updates:
+            try:
+                txn = session.query(Transaction).get(update["transaction_id"])
+                if txn:
+                    if "description" in update:
+                        txn.description = update["description"]
+                    if "amount" in update:
+                        txn.amount = update["amount"]
+                    if "category" in update:
+                        txn.category = update["category"]
+                    if "date" in update:
+                        txn.date = datetime.strptime(update["date"], "%Y-%m-%d").date()
+                    if "action" in update:
+                        txn.action = update["action"]
+                    results.append({"id": txn.id, "success": True})
+                else:
+                    results.append({"id": update["transaction_id"], "success": False, "error": "Not found"})
+            except Exception as e:
+                results.append({"id": update.get("transaction_id"), "success": False, "error": str(e)})
+    return {"results": results}
+
 
 if __name__ == "__main__":
     # Example usage

@@ -7,14 +7,15 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from aiva.core.config import settings
 from aiva.services.agents.agent_tools import (
-    # Data entry tools
     get_current_date,
     get_available_categories,
     insert_transaction,
     delete_transaction,
     update_transaction,
-    
-    # Analysis tools
+    update_multiple_transactions,
+    get_transaction_by_id,
+    get_transactions_by_description,
+    get_all_transactions,
     get_transactions_by_category,
     get_transactions_by_date_range,
     group_transactions_by_category
@@ -35,14 +36,11 @@ def get_llm(temperature=0.0):
 
 def create_finance_system():
     """Create the finance system with a supervisor managing specialized agents"""
-    
-    # Create memory saver for persistence
+
     memory = MemorySaver()
-    
-    # Create LLM for agents
+
     llm = get_llm()
     
-    # Create data entry agent
     data_entry_agent = create_react_agent(
         model=llm,
         tools=[
@@ -51,37 +49,39 @@ def create_finance_system():
             insert_transaction,
             delete_transaction,
             update_transaction,
+            get_transactions_by_description,
+            update_multiple_transactions,
+            get_transaction_by_id,
+            get_all_transactions,
         ],
         prompt=TRANSACTION_EXTRACTION_PROMPT,
         name="data_entry_specialist",
         checkpointer=memory,
-        # debug=True,
     )
     
-    # Create analysis agent
     analysis_agent = create_react_agent(
         model=llm,
         tools=[
             get_current_date,
+            get_all_transactions,
+            get_transaction_by_id,
             get_available_categories,
             get_transactions_by_category,
+            get_transactions_by_description,
             get_transactions_by_date_range,
             group_transactions_by_category,
         ],
         prompt=FINANCIAL_ANALYST_PROMPT,
         name="financial_analyst",
         checkpointer=memory,
-        # debug=True,
     )
-    
-    # Create supervisor workflow
+
     workflow = create_supervisor(
         agents=[data_entry_agent, analysis_agent],
         model=get_llm(temperature=0),
         prompt=SUPERVISOR_PROMPT,
     )
     
-    # Compile the workflow
     finance_system = workflow.compile()
     
     return finance_system
@@ -125,7 +125,6 @@ def print_ascii_conversation(messages: list):
         else:
             continue
 
-        # Build tool call info if exists
         tool_calls_text = ""
         if hasattr(msg, 'tool_calls') and msg.tool_calls:
             tool_calls_text += "\n[bold yellow]Tool Calls:[/bold yellow]\n"
@@ -137,7 +136,6 @@ def print_ascii_conversation(messages: list):
                     for k, v in args.items():
                         tool_calls_text += f"   - {k}: {v}\n"
 
-        # Token usage info if exists
         usage_text = ""
         if hasattr(msg, 'usage_metadata'):
             usage = getattr(msg, 'usage_metadata', {})
@@ -158,34 +156,37 @@ def print_ascii_conversation(messages: list):
         )
         console.print(panel)
 
-def process_prompt(query: str, thread_id: Optional[str] = None):
+def process_prompt(query: str, thread_id: Optional[str] = None, debug=False):
     finance_system = create_finance_system()
     initial_state = {"messages": [{"role": "user", "content": query}]}
     config = {"configurable": {"thread_id": thread_id}} if thread_id else {}
-
-    console.rule("[bold green]PROCESSING QUERY", style="green")
-    console.print(f"[bold]📝 Query:[/bold] {query}")
-    console.print(f"[bold]⏱️ Start time:[/bold] {format_timestamp()}\n")
-
+    config = {**config, "recursion_limit": 200}
+    
     try:
         result = finance_system.invoke(initial_state, config)
-        print_ascii_conversation(result.get("messages", []))
+        
+        if debug:
+            console.rule("[bold green]PROCESSING QUERY", style="green")
+            console.print(f"[bold]📝 Query:[/bold] {query}")
+            console.print(f"[bold]⏱️ Start time:[/bold] {format_timestamp()}\n")
+            
+            print_ascii_conversation(result.get("messages", []))
+            final_messages = [
+                m for m in result.get("messages", [])
+                if hasattr(m, 'content') and m.content and not getattr(m, 'tool_calls', None)
+            ]
 
-        final_messages = [
-            m for m in result.get("messages", [])
-            if hasattr(m, 'content') and m.content and not getattr(m, 'tool_calls', None)
-        ]
-
-        if final_messages:
-            console.rule("[bold green]FINAL ANSWER", style="green")
-            console.print(Markdown(final_messages[-1].content.strip()))
-
-        console.print(f"\n[bold]⏱️ End time:[/bold] {format_timestamp()}")
+            if final_messages:
+                console.rule("[bold green]FINAL ANSWER", style="green")
+                console.print(Markdown(final_messages[-1].content.strip()))
+                console.print(f"\n[bold]⏱️ End time:[/bold] {format_timestamp()}")
+        else:
+            print(result)
 
     except Exception as e:
         console.rule("[bold red]ERROR", style="red")
         console.print(f"[bold red]❌ Error processing query:[/bold red] {e}")
 
 if __name__ == "__main__":
-    query = "How much did I spend on groceries this month?"
-    process_prompt(query)
+    query = "Change the transaction with the description containing 'Test Transaction' to a more relevant description based on the category."
+    print(process_prompt(query))
