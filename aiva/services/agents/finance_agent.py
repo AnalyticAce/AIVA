@@ -26,8 +26,17 @@ from aiva.services.agents.prompts import (
     SUPERVISOR_PROMPT
 )
 
+from datetime import datetime
+from typing import Optional
+from rich.console import Console
+from rich.panel import Panel
+from rich.box import ROUNDED
+from rich.markdown import Markdown
+
+console = Console()
+
+
 def get_llm(temperature=0.0):
-    """Create an OpenAI LLM instance with specified settings"""
     return ChatOpenAI(
         api_key=settings.openai_api_key,
         model=settings.openai_model,
@@ -35,8 +44,6 @@ def get_llm(temperature=0.0):
     )
 
 def create_finance_system():
-    """Create the finance system with a supervisor managing specialized agents"""
-
     memory = MemorySaver()
 
     llm = get_llm()
@@ -86,15 +93,6 @@ def create_finance_system():
     
     return finance_system
 
-from datetime import datetime
-from typing import Optional
-
-from rich.console import Console
-from rich.panel import Panel
-from rich.box import ROUNDED
-from rich.markdown import Markdown
-
-console = Console()
 
 def format_timestamp():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -188,5 +186,5 @@ def process_prompt(query: str, thread_id: Optional[str] = None, debug=False):
         console.print(f"[bold red]❌ Error processing query:[/bold red] {e}")
 
 if __name__ == "__main__":
-    query = "Change the transaction with the description containing 'Test Transaction' to a more relevant description based on the category."
-    print(process_prompt(query))
+    query = "I spent $1.95 for food today"
+    print(process_prompt(query, debug=True))
